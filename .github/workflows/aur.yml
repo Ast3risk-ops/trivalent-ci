@@ -42,7 +42,7 @@ jobs:
         id: check
         working-directory: aur-repo
         run: |
-          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2 | )
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2 | cut -d'-' -f1)
           if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ] && [ "${{ inputs.force_update }}" != "true" ]; then
             echo "Already up-to-date (version $CURRENT)"
             echo "skip=true" >> $GITHUB_OUTPUT
