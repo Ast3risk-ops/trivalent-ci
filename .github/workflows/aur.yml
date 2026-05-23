@@ -1,0 +1,76 @@
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0" # Weekly on Sunday at midnight UTC
+jobs:
+  update-aur:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Sy --noconfirm jq openssh git
+      - name: Get latest Trivalent version
+        id: version
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Download RPMs and get sha256sums
+        id: checksum
+        run: |
+          curl -sLO "https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm"
+          curl -sLO "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm"
+          SHA256_MAIN=$(sha256sum "trivalent-${{ steps.version.outputs.version }}.x86_64.rpm" | cut -d' ' -f1)
+          SHA256_UI=$(sha256sum "trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm" | cut -d' ' -f1)
+          echo "sha256_main=$SHA256_MAIN" >> $GITHUB_OUTPUT
+          echo "sha256_ui=$SHA256_UI" >> $GITHUB_OUTPUT
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+      - name: Clone AUR repo
+        env:
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+        run: git clone ssh://aur@aur.archlinux.org/trello-cli.git aur-repo
+      - name: Check if update needed
+        id: check
+        working-directory: aur-repo
+        run: |
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ]; then
+            echo "Already up-to-date (version $CURRENT)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Update available: $CURRENT -> ${{ steps.version.outputs.version }}"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Update PKGBUILD
+        if: steps.check.outputs.skip != 'true'
+        working-directory: aur-repo
+        run: |
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s|^source=(.*|source=(\"https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm\"\n         \"https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm\")|" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${{ steps.checksum.outputs.sha256_main }}' '${{ steps.checksum.outputs.sha256_ui }}')/" PKGBUILD
+      - name: Update .SRCINFO
+        if: steps.check.outputs.skip != 'true'
+        working-directory: aur-repo
+        run: |
+          useradd -m builder
+          mkdir -p /home/builder/build
+          cp -a . /home/builder/build
+          chown -R builder:builder /home/builder/build
+          runuser -u builder -- bash -lc 'cd /home/builder/build && makepkg --printsrcinfo > .SRCINFO'
+          cp /home/builder/build/.SRCINFO ./.SRCINFO
+      - name: Commit and push
+        if: steps.check.outputs.skip != 'true'
+        working-directory: aur-repo
+        env:
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+        run: |
+          git config user.name "Michael Heap"
+          git config user.email "m@michaelheap.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to version ${{ steps.version.outputs.version }}"
+          git push
