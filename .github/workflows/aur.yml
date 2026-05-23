@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
-run-name: "Update AUR"
+name: "Update AUR"
 
 jobs:
   update-aur:
