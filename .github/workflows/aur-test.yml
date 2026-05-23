@@ -4,7 +4,10 @@ on:
         force_update:
           description: 'Force update'
           required: false
-          type: boolean # Weekly on Sunday at midnight UTC
+          type: boolean
+
+run-name: "Dry run"
+
 jobs:
   update-aur:
     runs-on: ubuntu-latest
