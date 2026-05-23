@@ -1,7 +1,7 @@
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 0" # Weekly on Sunday at midnight UTC
+    - cron: "0 0 * * *" # Weekly on Sunday at midnight UTC
 jobs:
   update-aur:
     runs-on: ubuntu-latest
@@ -9,7 +9,7 @@ jobs:
       image: archlinux:base-devel
     steps:
       - name: Install dependencies
-        run: pacman -Sy --noconfirm jq openssh git
+        run: pacman -Sy --noconfirm --needed jq openssh git
       - name: Get latest Trivalent version
         id: version
         run: |
@@ -69,8 +69,8 @@ jobs:
         env:
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
         run: |
-          git config user.name "Michael Heap"
-          git config user.email "m@michaelheap.com"
+          git config user.name "ast3riskinc"
+          git config user.email "me@asterisk.lol"
           git add PKGBUILD .SRCINFO
-          git commit -m "Update to version ${{ steps.version.outputs.version }}"
+          git commit -m "${{ steps.version.outputs.version }} (automated update)"
           git push
