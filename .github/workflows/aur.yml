@@ -32,7 +32,7 @@ jobs:
       - name: Clone AUR repo
         env:
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-        run: git clone ssh://aur@aur.archlinux.org/trello-cli.git aur-repo
+        run: git clone ssh://aur@aur.archlinux.org/trivalent-bin.git aur-repo
       - name: Check if update needed
         id: check
         working-directory: aur-repo
