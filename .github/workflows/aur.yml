@@ -75,8 +75,10 @@ jobs:
           PKGVER=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
           sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=${{ steps.pkgrel.outputs.pkgrel }}/" PKGBUILD
-          sed -i "0,/^source=(/s|^source=(.*|source=(\"https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm\" \"https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm\")|" PKGBUILD
-          sed -i "0,/^sha256sums=/s|^sha256sums=.*|sha256sums=('${{ steps.checksum.outputs.sha256_main }}' '${{ steps.checksum.outputs.sha256_ui }}')|" PKGBUILD
+          sed -i '/^source=/,/^[^ \t]*$/{ /^source=/!{ /^[^ \t]/!d; }; }' PKGBUILD
+          sed -i "s|^source=.*|source=(\"https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm\" \"https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm\")|" PKGBUILD
+          sed -i '/^sha256sums=/,/^[^ \t]*$/{ /^sha256sums=/!{ /^[^ \t]/!d; }; }' PKGBUILD
+          sed -i "s|^sha256sums=.*|sha256sums=('${{ steps.checksum.outputs.sha256_main }}' '${{ steps.checksum.outputs.sha256_ui }}')|" PKGBUILD
       - name: Update .SRCINFO
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
