@@ -63,7 +63,6 @@ jobs:
         working-directory: aur-repo
         run: |
           VERSION=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
-          if [ "${{ inputs.force_update }}" = "true" ]; then
             CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
             if [ "$CURRENT" = "$VERSION" ]; then
               CURRENT_REL=$(grep '^pkgrel=' PKGBUILD | cut -d= -f2)
@@ -72,9 +71,6 @@ jobs:
             else
               echo "pkgrel=1" >> $GITHUB_OUTPUT
             fi
-          else
-            echo "pkgrel=1" >> $GITHUB_OUTPUT
-          fi
       - name: Update PKGBUILD
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
