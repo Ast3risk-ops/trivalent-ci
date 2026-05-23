@@ -85,6 +85,7 @@ jobs:
           mkdir -p /home/builder/build
           cp -a . /home/builder/build
           chown -R builder:builder /home/builder/build
+          cat /home/builder/build/PKGBUILD
           runuser -u builder -- bash -lc 'cd /home/builder/build && makepkg --printsrcinfo > .SRCINFO'
           cp /home/builder/build/.SRCINFO ./.SRCINFO
       - name: Commit and push
