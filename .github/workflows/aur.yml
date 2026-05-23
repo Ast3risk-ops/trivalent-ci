@@ -42,8 +42,9 @@ jobs:
         id: check
         working-directory: aur-repo
         run: |
-          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2 | cut -d'-' -f1)
-          if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ] && [ "${{ inputs.force_update }}" != "true" ]; then
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          VERSION=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
+          if [ "$CURRENT" = "$VERSION" ] && [ "${{ inputs.force_update }}" != "true" ]; then
             echo "Already up-to-date (version $CURRENT)"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
@@ -54,9 +55,10 @@ jobs:
         id: pkgrel
         working-directory: aur-repo
         run: |
+          VERSION=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
           if [ "${{ inputs.force_update }}" = "true" ]; then
-            CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2 | cut -d'-' -f1)
-            if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ]; then
+            CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+            if [ "$CURRENT" = "$VERSION" ]; then
               CURRENT_REL=$(grep '^pkgrel=' PKGBUILD | cut -d= -f2)
               NEW_REL=$((CURRENT_REL + 1))
               echo "pkgrel=$NEW_REL" >> $GITHUB_OUTPUT
