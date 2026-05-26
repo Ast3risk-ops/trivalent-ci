@@ -49,9 +49,8 @@ jobs:
         id: check
         working-directory: aur-repo
         run: |
-          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
-          VERSION=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
-          if [ "$CURRENT" = "$VERSION" ] && [ "${{ inputs.force_update }}" != "true" ]; then
+          CURRENT=$(grep -E "^#[0-9]" PKGBUILD)
+          if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ] && [ "${{ inputs.force_update }}" != "true" ]; then
             echo "Already up-to-date (version $CURRENT)"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
@@ -76,6 +75,8 @@ jobs:
         working-directory: aur-repo
         run: |
           PKGVER=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
+          PKGFULLVER=$(grep -E "^#[0-9]" PKGBUILD)
+          sed -i 's/^#$PKGFULLVER/#${{ steps.version.outputs.version }}/' PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=${{ steps.pkgrel.outputs.pkgrel }}/" PKGBUILD
           sed -i 's|^source=.*|source=("https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm" "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm")|' PKGBUILD
