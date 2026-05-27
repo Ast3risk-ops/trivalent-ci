@@ -75,8 +75,7 @@ jobs:
         working-directory: aur-repo
         run: |
           PKGVER=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
-          PKGFULLVER=$(grep -E "^#[0-9]" PKGBUILD)
-          sed -i 's/^$PKGFULLVER/#${{ steps.version.outputs.version }}/' PKGBUILD
+          sed -i "s/^#[0-9].*/#${{ steps.version.outputs.version }}/" PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=${{ steps.pkgrel.outputs.pkgrel }}/" PKGBUILD
           sed -i 's|^source=.*|source=("https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm" "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm")|' PKGBUILD
