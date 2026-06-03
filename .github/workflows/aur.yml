@@ -10,7 +10,7 @@ on:
           required: false
           type: boolean
   schedule:
-    - cron: "0 */5 * * *"
+    - cron: "0 */3 * * *"
 
 name: "Update AUR"
 
