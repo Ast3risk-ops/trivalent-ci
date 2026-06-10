@@ -104,6 +104,6 @@ jobs:
           git add PKGBUILD .SRCINFO
           git commit -m "${{ steps.version.outputs.version }} (automated update)"
           git log -p -1
-          if [ "${{ inputs.dry_run }}" = "false" ]; then
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
             git push
           fi
