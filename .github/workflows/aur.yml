@@ -59,7 +59,7 @@ jobs:
         id: checksum
         env:
           TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
-        run:
+        run: |
           provenance_file='multiple.intoto.jsonl'
           curl -fLsS --retry 3 \
             -O "https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm" \
