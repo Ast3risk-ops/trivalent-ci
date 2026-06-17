@@ -31,24 +31,60 @@ jobs:
       image: archlinux:base-devel
     steps:
       - name: Install dependencies
-        run: pacman -Sy --noconfirm --needed jq openssh git
+        run: pacman -Sy --noconfirm --needed jq openssh git gnupg rpm-tools
+
+      - name: Install slsa-verifier
+        uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
+
+      - name: Get GPG key
+        run: |
+          secureblue_gpg_fingerprint='26B4463ED8F313BC7E3FBDF9D9223AF0F47B3E41'
+          curl -fLsS --retry 3 -O https://repo.secureblue.dev/secureblue.gpg
+          valid_fingerprint=0
+          # Reference for GPG colon-listing format: https://github.com/gpg/gnupg/blob/master/doc/DETAILS
+          gpg --show-keys --with-colons secureblue.gpg \
+            | awk -F: '$1 == "fpr" || $1 == "fpr2" { print $10 }' \
+            | while IFS= read -r fingerprint; do
+              if [ "${secureblue_gpg_fingerprint}" = "${fingerprint}" ]; then
+                valid_fingerprint=1
+                break
+              fi
+            done
+          if [ "${valid_fingerprint}" != 1 ]; then
+            echo "Expected GPG fingerprint ${secureblue_gpg_fingerprint} not found!"
+            exit 1
+          fi
+          rpmkeys --import secureblue.gpg
+
       - name: Get latest Trivalent version
         id: version
         run: |
           VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
           echo "version=${VERSION#v}" >> "${GITHUB_OUTPUT}"
-      - name: Download RPMs and get sha256sums
+
+      - name: Download and verify RPMs and get sha256sums
         id: checksum
         env:
           TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
         run:
+          provenance_file='multiple.intoto.jsonl'
           curl -fLsS --retry 3 \
             -O "https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm" \
-            -O "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm"
-          SHA256_MAIN=$(sha256sum "trivalent-${TRIVALENT_VERSION}.x86_64.rpm" | cut -d' ' -f1)
-          SHA256_UI=$(sha256sum "trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm" | cut -d' ' -f1)
+            -O "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm" \
+            -O "https://github.com/secureblue/Trivalent/releases/download/${TRIVALENT_VERSION}/${provenance_file}"
+          trivalent_rpm="trivalent-${TRIVALENT_VERSION}.x86_64.rpm"
+          trivalent_qt6_rpm="trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm"
+          slsa-verifier verify-artifact \
+            --provenance-path "${provenance_file}" \
+            --source-uri 'github.com/secureblue/Trivalent' \
+            --source-branch 'live' \
+            "${trivalent_rpm}" "${trivalent_qt6_rpm}"
+          rpmkeys --checksig "${trivalent_rpm}" "${trivalent_qt6_rpm}"
+          SHA256_MAIN=$(sha256sum "${trivalent_rpm}" | cut -d' ' -f1)
+          SHA256_UI=$(sha256sum "${trivalent_qt6_rpm}" | cut -d' ' -f1)
           echo "sha256_main=${SHA256_MAIN}" >> "${GITHUB_OUTPUT}"
           echo "sha256_ui=${SHA256_UI}" >> "${GITHUB_OUTPUT}"
+
       - name: Setup SSH for AUR
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
@@ -57,10 +93,12 @@ jobs:
           mkdir -p ~/.ssh
           echo "${AUR_SSH_KEY}" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
+
       - name: Clone AUR repo
         env:
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
         run: git clone ssh://aur@aur.archlinux.org/trivalent-bin.git aur-repo
+
       - name: Check if update needed
         id: check
         working-directory: aur-repo
@@ -76,6 +114,7 @@ jobs:
             echo "Update available: ${CURRENT} -> ${TRIVALENT_VERSION}"
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
+
       - name: Calculate pkgrel
         id: pkgrel
         working-directory: aur-repo
@@ -91,6 +130,7 @@ jobs:
             else
               echo "pkgrel=1" >> "${GITHUB_OUTPUT}"
             fi
+
       - name: Update PKGBUILD
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
@@ -108,6 +148,7 @@ jobs:
             -e "s|^source=.*|source=(\"https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm\" \"https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm\")|" \
             -e "s|^sha256sums=.*|sha256sums=('${SHA256_MAIN}' '${SHA256_UI}')|" \
             PKGBUILD
+
       - name: Update .SRCINFO
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
@@ -123,6 +164,7 @@ jobs:
           fi
           runuser -u builder -- bash -lc 'cd /home/builder/build && makepkg --printsrcinfo > .SRCINFO'
           cp /home/builder/build/.SRCINFO ./.SRCINFO
+
       - name: Commit and push
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
