@@ -14,6 +14,16 @@ on:
 
 name: "Update AUR"
 
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   update-aur:
     runs-on: ubuntu-latest
@@ -25,21 +35,27 @@ jobs:
       - name: Get latest Trivalent version
         id: version
         run: |
-          VERSION=$(curl -s https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
+          echo "version=${VERSION#v}" >> "${GITHUB_OUTPUT}"
       - name: Download RPMs and get sha256sums
         id: checksum
-        run: |
-          curl -sLO "https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm"
-          curl -sLO "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm"
-          SHA256_MAIN=$(sha256sum "trivalent-${{ steps.version.outputs.version }}.x86_64.rpm" | cut -d' ' -f1)
-          SHA256_UI=$(sha256sum "trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm" | cut -d' ' -f1)
-          echo "sha256_main=$SHA256_MAIN" >> $GITHUB_OUTPUT
-          echo "sha256_ui=$SHA256_UI" >> $GITHUB_OUTPUT
+        env:
+          TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
+        run:
+          curl -fLsS --retry 3 \
+            -O "https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm" \
+            -O "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm"
+          SHA256_MAIN=$(sha256sum "trivalent-${TRIVALENT_VERSION}.x86_64.rpm" | cut -d' ' -f1)
+          SHA256_UI=$(sha256sum "trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm" | cut -d' ' -f1)
+          echo "sha256_main=${SHA256_MAIN}" >> "${GITHUB_OUTPUT}"
+          echo "sha256_ui=${SHA256_UI}" >> "${GITHUB_OUTPUT}"
       - name: Setup SSH for AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
+          umask 077
           mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
+          echo "${AUR_SSH_KEY}" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
       - name: Clone AUR repo
         env:
@@ -48,47 +64,61 @@ jobs:
       - name: Check if update needed
         id: check
         working-directory: aur-repo
+        env:
+          TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
+          FORCE_UPDATE: ${{ inputs.force_update }}
         run: |
           CURRENT=$(grep -E "^#[0-9]" PKGBUILD | cut -d'#' -f2)
-          if [ "$CURRENT" = "${{ steps.version.outputs.version }}" ] && [ "${{ inputs.force_update }}" != "true" ]; then
-            echo "Already up-to-date (version $CURRENT)"
-            echo "skip=true" >> $GITHUB_OUTPUT
+          if [ "${CURRENT}" = "${TRIVALENT_VERSION}" ] && [ "${FORCE_UPDATE}" != "true" ]; then
+            echo "Already up-to-date (version ${CURRENT})"
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "Update available: $CURRENT -> ${{ steps.version.outputs.version }}"
-            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Update available: ${CURRENT} -> ${TRIVALENT_VERSION}"
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
       - name: Calculate pkgrel
         id: pkgrel
         working-directory: aur-repo
+        env:
+          TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
+          VERSION=$(echo "${TRIVALENT_VERSION}" | cut -d'-' -f1)
             CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
-            if [ "$CURRENT" = "$VERSION" ]; then
+            if [ "${CURRENT}" = "${VERSION}" ]; then
               CURRENT_REL=$(grep '^pkgrel=' PKGBUILD | cut -d= -f2)
               NEW_REL=$((CURRENT_REL + 1))
-              echo "pkgrel=$NEW_REL" >> $GITHUB_OUTPUT
+              echo "pkgrel=${NEW_REL}" >> "${GITHUB_OUTPUT}"
             else
-              echo "pkgrel=1" >> $GITHUB_OUTPUT
+              echo "pkgrel=1" >> "${GITHUB_OUTPUT}"
             fi
       - name: Update PKGBUILD
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
+        env:
+          PKGREL: ${{ steps.pkgrel.outputs.pkgrel }}
+          SHA256_MAIN: ${{ steps.checksum.outputs.sha256_main }}
+          SHA256_UI: ${{ steps.checksum.outputs.sha256_ui }}
+          TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          PKGVER=$(echo "${{ steps.version.outputs.version }}" | cut -d'-' -f1)
-          sed -i "s/^#[0-9].*/#${{ steps.version.outputs.version }}/" PKGBUILD
-          sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=${{ steps.pkgrel.outputs.pkgrel }}/" PKGBUILD
-          sed -i 's|^source=.*|source=("https://repo.secureblue.dev/Packages/trivalent-${{ steps.version.outputs.version }}.x86_64.rpm" "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${{ steps.version.outputs.version }}.x86_64.rpm")|' PKGBUILD
-          sed -i "s|^sha256sums=.*|sha256sums=('${{ steps.checksum.outputs.sha256_main }}' '${{ steps.checksum.outputs.sha256_ui }}')|" PKGBUILD
+          PKGVER=$(echo "${TRIVALENT_VERSION}" | cut -d'-' -f1)
+          sed --sandbox -i \
+            -e "s/^#[0-9].*/#${TRIVALENT_VERSION}/" \
+            -e "s/^pkgver=.*/pkgver=${PKGVER}/" \
+            -e "s/^pkgrel=.*/pkgrel=${PKGREL}/" \
+            -e "s|^source=.*|source=(\"https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm\" \"https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm\")|" \
+            -e "s|^sha256sums=.*|sha256sums=('${SHA256_MAIN}' '${SHA256_UI}')|" \
+            PKGBUILD
       - name: Update .SRCINFO
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           useradd -m builder
           mkdir -p /home/builder/build
           cp -a . /home/builder/build
           chown -R builder:builder /home/builder/build
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${DRY_RUN}" = "true" ]; then
             cat /home/builder/build/PKGBUILD
           fi
           runuser -u builder -- bash -lc 'cd /home/builder/build && makepkg --printsrcinfo > .SRCINFO'
@@ -97,13 +127,15 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         working-directory: aur-repo
         env:
+          DRY_RUN: ${{ inputs.dry_run }}
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+          TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name "ast3riskinc"
           git config user.email "me@asterisk.lol"
           git add PKGBUILD .SRCINFO
-          git commit -m "${{ steps.version.outputs.version }} (automated update)"
+          git commit -m "${TRIVALENT_VERSION} (automated update)"
           git log -p -1
-          if [ "${{ inputs.dry_run }}" != "true" ]; then
+          if [ "${DRY_RUN}" != "true" ]; then
             git push
           fi
