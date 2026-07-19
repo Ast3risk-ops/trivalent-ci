@@ -147,6 +147,7 @@ jobs:
         working-directory: aur-repo
         env:
           DRY_RUN: ${{ inputs.dry_run }}
+        # makepkg can't run as root
         run: |
           useradd -m builder
           mkdir -p /home/builder/build
