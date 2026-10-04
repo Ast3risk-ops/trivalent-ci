@@ -55,7 +55,7 @@ jobs:
              RAW_VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
              CLEAN_VERSION=$(echo "${RAW_VERSION#v}" | sed -E 's/-(x86_64|aarch64)$//')
              echo "version=${CLEAN_VERSION}" >> "${GITHUB_OUTPUT}"
-             echo "raw_version=${RAW_VERSION#v}" >> "${GITHUB_OUTPUT}"
+             echo "raw_version=${CLEAN_VERSION}-x86_64" >> "${GITHUB_OUTPUT}"
 
       - name: Download and verify RPMs and get sha256sums
         id: checksum
