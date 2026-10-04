@@ -52,8 +52,9 @@ jobs:
       - name: Get latest Trivalent version
         id: version
         run: |
-          VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
-          echo "version=${VERSION#v}" >> "${GITHUB_OUTPUT}"
+             RAW_VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
+             CLEAN_VERSION=$(echo "${RAW_VERSION#v}" | sed -E 's/-(x86_64|aarch64)$//')
+             echo "version=${CLEAN_VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Download and verify RPMs and get sha256sums
         id: checksum
