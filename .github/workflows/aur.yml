@@ -55,17 +55,19 @@ jobs:
              RAW_VERSION=$(curl -fLsS --retry 3 https://api.github.com/repos/secureblue/Trivalent/releases/latest | jq -r '.tag_name')
              CLEAN_VERSION=$(echo "${RAW_VERSION#v}" | sed -E 's/-(x86_64|aarch64)$//')
              echo "version=${CLEAN_VERSION}" >> "${GITHUB_OUTPUT}"
+             echo "raw_version=${RAW_VERSION#v}" >> "${GITHUB_OUTPUT}"
 
       - name: Download and verify RPMs and get sha256sums
         id: checksum
         env:
           TRIVALENT_VERSION: ${{ steps.version.outputs.version }}
+          RAW_VERSION: ${{ steps.version.outputs.raw_version }}
         run: |
           provenance_file='multiple.intoto.jsonl'
           curl -fLsS --retry 3 \
             -O "https://repo.secureblue.dev/Packages/trivalent-${TRIVALENT_VERSION}.x86_64.rpm" \
             -O "https://repo.secureblue.dev/Packages/trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm" \
-            -O "https://github.com/secureblue/Trivalent/releases/download/${TRIVALENT_VERSION}/${provenance_file}"
+            -O "https://github.com/secureblue/Trivalent/releases/download/${RAW_VERSION}/${provenance_file}"
           trivalent_rpm="trivalent-${TRIVALENT_VERSION}.x86_64.rpm"
           trivalent_qt6_rpm="trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm"
           slsa-verifier verify-artifact \
