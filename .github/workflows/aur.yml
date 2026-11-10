@@ -73,8 +73,10 @@ jobs:
           slsa-verifier build \
             --require-signatures \
             --level 3 \
-            --source-uri 'github.com/secureblue/Trivalent' \
-            --source-branch 'live' \
+            --signer 'sigstore(identityMatch=regex)::https://token.actions.githubusercontent.com::https://github\.com/slsa-framework/actions/\.github/workflows/attest_actions\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
+            --param 'expected_source:github.com/secureblue/trivalent' \
+            --param 'expected_branch:live' \
+            --param 'trusted_builders:[https://github.com/secureblue/trivalent/.github/workflows/build.yml@refs/heads/live]'
             "${provenance_file}" "${trivalent_rpm}" "${trivalent_qt6_rpm}"
           rpmkeys --checksig "${trivalent_rpm}" "${trivalent_qt6_rpm}"
           SHA256_MAIN=$(sha256sum "${trivalent_rpm}" | cut -d' ' -f1)
