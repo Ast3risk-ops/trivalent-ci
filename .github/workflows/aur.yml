@@ -34,7 +34,7 @@ jobs:
         run: pacman -Sy --noconfirm --needed jq openssh git gnupg rpm-tools
 
       - name: Install slsa-verifier
-        uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
+        uses: slsa-framework/actions/install/verifier@61704426d68d7afce8d699dd7a7699869c83a82c
 
       - name: Get GPG key
         run: |
@@ -70,11 +70,12 @@ jobs:
             -O "https://github.com/secureblue/Trivalent/releases/download/${RAW_VERSION}/${provenance_file}"
           trivalent_rpm="trivalent-${TRIVALENT_VERSION}.x86_64.rpm"
           trivalent_qt6_rpm="trivalent-qt6-ui-${TRIVALENT_VERSION}.x86_64.rpm"
-          slsa-verifier verify-artifact \
-            --provenance-path "${provenance_file}" \
+          slsa-verifier build \
+            --require-signatures \
+            --level 3 \
             --source-uri 'github.com/secureblue/Trivalent' \
             --source-branch 'live' \
-            "${trivalent_rpm}" "${trivalent_qt6_rpm}"
+            "${provenance_file}" "${trivalent_rpm}" "${trivalent_qt6_rpm}"
           rpmkeys --checksig "${trivalent_rpm}" "${trivalent_qt6_rpm}"
           SHA256_MAIN=$(sha256sum "${trivalent_rpm}" | cut -d' ' -f1)
           SHA256_UI=$(sha256sum "${trivalent_qt6_rpm}" | cut -d' ' -f1)
