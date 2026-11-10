@@ -74,7 +74,7 @@ jobs:
             --require-signatures \
             --level 3 \
             --signer 'sigstore(identityMatch=regex)::https://token.actions.githubusercontent.com::https://github\.com/slsa-framework/actions/\.github/workflows/attest_actions\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+' \
-            --param 'expected_source:github.com/secureblue/trivalent' \
+            --param 'expected_source:github.com/secureblue/Trivalent' \
             --param 'expected_branch:live' \
             --param 'trusted_builders:[https://github.com/secureblue/Trivalent/.github/workflows/build_x86_64.yml@refs/heads/live,https://github.com/secureblue/Trivalent/.github/workflows/build_aarch64.yml@refs/heads/live]' \
             "${provenance_file}" "${trivalent_rpm}" "${trivalent_qt6_rpm}"
