@@ -31,7 +31,7 @@ jobs:
       image: archlinux:base-devel
     steps:
       - name: Install dependencies
-        run: pacman -Sy --noconfirm --needed jq openssh git gnupg rpm-tools
+        run: pacman -Syu --noconfirm --needed jq openssh git gnupg rpm-tools
 
       - name: Install slsa-verifier
         uses: slsa-framework/actions/install/verifier@61704426d68d7afce8d699dd7a7699869c83a82c
