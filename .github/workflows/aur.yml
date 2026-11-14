@@ -34,7 +34,7 @@ jobs:
         run: pacman -Syu --noconfirm --needed jq openssh git gnupg rpm-tools
 
       - name: Install slsa-verifier
-        uses: slsa-framework/actions/install/verifier@61704426d68d7afce8d699dd7a7699869c83a82c
+        uses: slsa-framework/actions/install/verifier@1b8a264e688b09fa0befb9b8d1e539a265b28640
 
       - name: Get GPG key
         run: |
