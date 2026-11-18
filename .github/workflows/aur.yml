@@ -176,7 +176,7 @@ jobs:
           git config user.name "ast3riskinc"
           git config user.email "me@asterisk.lol"
           git add PKGBUILD .SRCINFO
-          git commit -m "${TRIVALENT_VERSION} (automated update)"
+          git commit -m "${TRIVALENT_VERSION} (automatic update)"
           git log -p -1
           if [ "${DRY_RUN}" != "true" ]; then
             git push
